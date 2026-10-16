@@ -9,13 +9,15 @@ import {
   type Overrides,
 } from "@/lib/metadata";
 
-// The debugger-relevant flows. Device uses the grant URN; refresh pairs with
-// auth code. (client_credentials needs client auth + isn't a browser flow.)
-const GRANT_OPTIONS = [
+// Flows available to any client.
+const BASE_GRANTS = [
   "authorization_code",
   "refresh_token",
   "urn:ietf:params:oauth:grant-type:device_code",
-] as const;
+];
+// client_credentials needs client authentication, so it's valid only with
+// private_key_jwt — never on a public (none) client.
+const CONFIDENTIAL_GRANTS = ["client_credentials"];
 
 // CIMD forbids shared-secret auth; `none` and `private_key_jwt` are the two
 // methods both valid and usable against a browser/native debugger.
@@ -72,6 +74,18 @@ export default function Home() {
   useEffect(() => {
     if (authMethod === "private_key_jwt" && !publicJwk) void generateKey();
   }, [authMethod, publicJwk]);
+
+  const grantOptions =
+    authMethod === "private_key_jwt"
+      ? [...BASE_GRANTS, ...CONFIDENTIAL_GRANTS]
+      : BASE_GRANTS;
+
+  // client_credentials needs client auth — drop it if you drop to a public client.
+  useEffect(() => {
+    if (authMethod !== "private_key_jwt" && grants.includes("client_credentials")) {
+      setGrants((g) => g.filter((x) => x !== "client_credentials"));
+    }
+  }, [authMethod, grants]);
 
   const toggle = (value: string) =>
     setGrants((g) =>
@@ -149,7 +163,7 @@ export default function Home() {
 
         <label>grant_types</label>
         <div className="checks">
-          {GRANT_OPTIONS.map((g) => (
+          {grantOptions.map((g) => (
             <label key={g}>
               <input
                 type="checkbox"
