@@ -175,3 +175,16 @@ a {
   letter-spacing: 0.04em;
   margin-bottom: 10px;
 }
+
+.keybox {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0e1118;
+}
+
+.keybox pre {
+  max-height: 220px;
+  overflow: auto;
+}

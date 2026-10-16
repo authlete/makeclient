@@ -9,27 +9,22 @@ import {
   type Overrides,
 } from "@/lib/metadata";
 
+// The debugger-relevant flows. Device uses the grant URN; refresh pairs with
+// auth code. (client_credentials needs client auth + isn't a browser flow.)
 const GRANT_OPTIONS = [
   "authorization_code",
   "refresh_token",
   "urn:ietf:params:oauth:grant-type:device_code",
-  "client_credentials",
 ] as const;
 
-const RESPONSE_OPTIONS = ["code", "token", "id_token"] as const;
-
-// CIMD forbids shared-secret methods (client_secret_*) — only `none` and
-// asymmetric/key-based methods are valid for a public document.
-const AUTH_METHODS = [
-  "none",
-  "private_key_jwt",
-  "tls_client_auth",
-  "self_signed_tls_client_auth",
-  "attest_jwt_client_auth",
-] as const;
+// CIMD forbids shared-secret auth; `none` and `private_key_jwt` are the two
+// methods both valid and usable against a browser/native debugger.
+const AUTH_METHODS = ["none", "private_key_jwt"] as const;
 
 const eq = (a: string[], b: string[]) =>
   a.length === b.length && a.every((v, i) => v === b[i]);
+
+type Jwk = Record<string, unknown>;
 
 export default function Home() {
   const [origin, setOrigin] = useState("");
@@ -40,22 +35,48 @@ export default function Home() {
   const [grants, setGrants] = useState<string[]>(
     DEFAULTS.grant_types as string[],
   );
-  const [responses, setResponses] = useState<string[]>(
-    DEFAULTS.response_types as string[],
-  );
-  const [authMethod, setAuthMethod] = useState(
-    DEFAULTS.token_endpoint_auth_method as string,
-  );
+  const [authMethod, setAuthMethod] = useState("none");
   const [scope, setScope] = useState(DEFAULTS.scope as string);
   const [raw, setRaw] = useState("");
   const [copied, setCopied] = useState(false);
 
-  const toggle = (
-    list: string[],
-    set: (v: string[]) => void,
-    value: string,
-  ) =>
-    set(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
+  // private_key_jwt: keypair generated in-browser. Public key goes in the
+  // document (jwks); the private key is shown once and never leaves the page.
+  const [publicJwk, setPublicJwk] = useState<Jwk | null>(null);
+  const [privateJwk, setPrivateJwk] = useState<string>("");
+  const [copiedKey, setCopiedKey] = useState(false);
+
+  async function generateKey() {
+    const kp = await crypto.subtle.generateKey(
+      { name: "ECDSA", namedCurve: "P-256" },
+      true,
+      ["sign", "verify"],
+    );
+    const pub = (await crypto.subtle.exportKey("jwk", kp.publicKey)) as Jwk;
+    const prv = (await crypto.subtle.exportKey("jwk", kp.privateKey)) as Jwk;
+    const kid = crypto.randomUUID();
+    setPublicJwk({
+      kty: "EC",
+      crv: "P-256",
+      x: pub.x,
+      y: pub.y,
+      use: "sig",
+      alg: "ES256",
+      kid,
+    });
+    setPrivateJwk(JSON.stringify({ ...prv, alg: "ES256", kid }, null, 2));
+  }
+
+  // Auto-generate on first switch to private_key_jwt so it's never in a broken
+  // state (the method set but no key to verify against).
+  useEffect(() => {
+    if (authMethod === "private_key_jwt" && !publicJwk) void generateKey();
+  }, [authMethod, publicJwk]);
+
+  const toggle = (value: string) =>
+    setGrants((g) =>
+      g.includes(value) ? g.filter((v) => v !== value) : [...g, value],
+    );
 
   const { overrides, rawError } = useMemo(() => {
     const o: Overrides = {};
@@ -66,11 +87,11 @@ export default function Home() {
       .filter(Boolean);
     if (!eq(ru, DEFAULT_REDIRECT_URIS)) o.redirect_uris = ru;
     if (!eq(grants, DEFAULTS.grant_types as string[])) o.grant_types = grants;
-    if (!eq(responses, DEFAULTS.response_types as string[]))
-      o.response_types = responses;
-    if (authMethod !== DEFAULTS.token_endpoint_auth_method)
-      o.token_endpoint_auth_method = authMethod;
     if (scope !== DEFAULTS.scope) o.scope = scope;
+    if (authMethod === "private_key_jwt" && publicJwk) {
+      o.token_endpoint_auth_method = "private_key_jwt";
+      o.jwks = { keys: [publicJwk] };
+    }
 
     let rawError = "";
     if (raw.trim()) {
@@ -81,7 +102,7 @@ export default function Home() {
       }
     }
     return { overrides: o, rawError };
-  }, [clientName, redirects, grants, responses, authMethod, scope, raw]);
+  }, [clientName, redirects, grants, scope, authMethod, publicJwk, raw]);
 
   const hasOverrides = Object.keys(overrides).length > 0;
   const path = hasOverrides
@@ -90,10 +111,15 @@ export default function Home() {
   const clientId = origin ? origin + path : path;
   const doc = buildMetadata(overrides, clientId);
 
-  const copy = async () => {
+  const copyUrl = async () => {
     await navigator.clipboard.writeText(clientId);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
+  };
+  const copyKey = async () => {
+    await navigator.clipboard.writeText(privateJwk);
+    setCopiedKey(true);
+    setTimeout(() => setCopiedKey(false), 1500);
   };
 
   return (
@@ -128,23 +154,9 @@ export default function Home() {
               <input
                 type="checkbox"
                 checked={grants.includes(g)}
-                onChange={() => toggle(grants, setGrants, g)}
+                onChange={() => toggle(g)}
               />
               {g.replace("urn:ietf:params:oauth:grant-type:", "")}
-            </label>
-          ))}
-        </div>
-
-        <label>response_types</label>
-        <div className="checks">
-          {RESPONSE_OPTIONS.map((r) => (
-            <label key={r}>
-              <input
-                type="checkbox"
-                checked={responses.includes(r)}
-                onChange={() => toggle(responses, setResponses, r)}
-              />
-              {r}
             </label>
           ))}
         </div>
@@ -160,11 +172,47 @@ export default function Home() {
             </option>
           ))}
         </select>
-        {authMethod !== "none" && (
-          <p className="hint">
-            Key-based methods also need a <code>jwks</code>/<code>jwks_uri</code>{" "}
-            in the document (add it under Advanced).
-          </p>
+        <p className="hint">
+          CIMD forbids shared secrets — only a public client (<code>none</code>,
+          with PKCE) or <code>private_key_jwt</code> (asymmetric) are valid.
+        </p>
+
+        {authMethod === "private_key_jwt" && (
+          <div className="keybox">
+            <div className="row" style={{ marginTop: 0 }}>
+              <strong style={{ fontSize: 13 }}>
+                private_key_jwt keypair (ES256)
+              </strong>
+              <button
+                className="ghost"
+                onClick={() => void generateKey()}
+                type="button"
+              >
+                Regenerate
+              </button>
+            </div>
+            <p className="hint">
+              The public key is embedded in the document (<code>jwks</code>). The
+              private key below <strong>stays in your browser</strong> — copy it
+              and paste it into the debugger&apos;s <code>private_key_jwt</code>{" "}
+              key field.
+            </p>
+            {privateJwk ? (
+              <>
+                <div className="row" style={{ marginTop: 6 }}>
+                  <span className="lead" style={{ margin: 0 }}>
+                    Private key (JWK)
+                  </span>
+                  <button onClick={copyKey} type="button">
+                    {copiedKey ? "Copied" : "Copy private key"}
+                  </button>
+                </div>
+                <pre style={{ marginTop: 6 }}>{privateJwk}</pre>
+              </>
+            ) : (
+              <p className="hint">Generating…</p>
+            )}
+          </div>
         )}
 
         <label>scope</label>
@@ -173,16 +221,23 @@ export default function Home() {
           value={scope}
           onChange={(e) => setScope(e.target.value)}
         />
+        <p className="hint">
+          Free-form per RFC 7591 — CIMD does not restrict scope.
+        </p>
 
         <details style={{ marginTop: 16 }}>
           <summary>Advanced — any other RFC 7591 field (raw JSON)</summary>
           <textarea
             rows={5}
-            placeholder={'{\n  "logo_uri": "https://…/logo.png",\n  "jwks_uri": "https://…/jwks.json"\n}'}
+            placeholder={'{\n  "logo_uri": "https://…/logo.png",\n  "contacts": ["dev@example.com"]\n}'}
             value={raw}
             onChange={(e) => setRaw(e.target.value)}
           />
-          {rawError && <p className="hint" style={{ color: "#e0603a" }}>{rawError}</p>}
+          {rawError && (
+            <p className="hint" style={{ color: "#e0603a" }}>
+              {rawError}
+            </p>
+          )}
         </details>
       </div>
 
@@ -190,7 +245,7 @@ export default function Home() {
         <p className="lead">Your client_id</p>
         <div className="url">
           <input type="text" readOnly value={clientId} />
-          <button onClick={copy}>{copied ? "Copied" : "Copy"}</button>
+          <button onClick={copyUrl}>{copied ? "Copied" : "Copy"}</button>
         </div>
         <div className="row">
           <a href={path} target="_blank" rel="noreferrer">

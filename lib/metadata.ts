@@ -43,14 +43,12 @@ function prune(obj: Overrides): Overrides {
   return out;
 }
 
-// CIMD (§4.1) forbids shared-secret client auth and any secret / private key
-// material in the public document. Enforced here so it holds on every path —
-// UI, API, or a hand-crafted URL — not just by hiding options in the form.
-const FORBIDDEN_AUTH = new Set([
-  "client_secret_basic",
-  "client_secret_post",
-  "client_secret_jwt",
-]);
+// CIMD rules out shared-secret client auth (the document is public). Of the
+// asymmetric methods the spec leaves open, this tool supports the two that are
+// actually usable against a browser/native debugger: `none` (public + PKCE) and
+// `private_key_jwt`. Whitelist, not blacklist — anything else falls back to none.
+const PERMITTED_AUTH = new Set(["none", "private_key_jwt"]);
+// A public document MUST NOT carry private key material (§4.1).
 const PRIVATE_JWK_MEMBERS = ["d", "p", "q", "dp", "dq", "qi", "k", "oth"];
 
 function stripPrivateKeys(jwks: unknown): unknown {
@@ -74,10 +72,10 @@ function enforceCompliance(doc: Overrides): Overrides {
   delete out.client_secret;
   delete out.client_secret_expires_at;
   if (
-    typeof out.token_endpoint_auth_method === "string" &&
-    FORBIDDEN_AUTH.has(out.token_endpoint_auth_method)
+    typeof out.token_endpoint_auth_method !== "string" ||
+    !PERMITTED_AUTH.has(out.token_endpoint_auth_method)
   ) {
-    out.token_endpoint_auth_method = "none"; // no shared symmetric secret
+    out.token_endpoint_auth_method = "none";
   }
   if ("jwks" in out) out.jwks = stripPrivateKeys(out.jwks);
   return out;
