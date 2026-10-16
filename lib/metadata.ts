@@ -49,6 +49,22 @@ const PERMITTED_AUTH = new Set(["none", "private_key_jwt"]);
 // A public document MUST NOT carry private key material (§4.1).
 const PRIVATE_JWK_MEMBERS = ["d", "p", "q", "dp", "dq", "qi", "k", "oth"];
 
+/** The `alg` of the first key in a jwks that declares one, if any. */
+function firstKeyAlg(jwks: unknown): string | undefined {
+  const keys = (jwks as { keys?: unknown })?.keys;
+  if (!Array.isArray(keys)) return undefined;
+  for (const k of keys) {
+    if (
+      k &&
+      typeof k === "object" &&
+      typeof (k as { alg?: unknown }).alg === "string"
+    ) {
+      return (k as { alg: string }).alg;
+    }
+  }
+  return undefined;
+}
+
 function stripPrivateKeys(jwks: unknown): unknown {
   if (!jwks || typeof jwks !== "object") return jwks;
   const keys = (jwks as { keys?: unknown }).keys;
@@ -76,6 +92,16 @@ function enforceCompliance(doc: Overrides): Overrides {
     out.token_endpoint_auth_method = "none";
   }
   if ("jwks" in out) out.jwks = stripPrivateKeys(out.jwks);
+  // private_key_jwt needs a known assertion signature algorithm. CIMD leaves it
+  // optional, but Authlete (and FAPI) require it — without it Authlete rejects
+  // the client with A157306. Derive it from the key's own `alg` when the caller
+  // didn't set it; ES256 matches the keypair makeclient mints.
+  if (
+    out.token_endpoint_auth_method === "private_key_jwt" &&
+    typeof out.token_endpoint_auth_signing_alg !== "string"
+  ) {
+    out.token_endpoint_auth_signing_alg = firstKeyAlg(out.jwks) ?? "ES256";
+  }
   return out;
 }
 
