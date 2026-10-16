@@ -176,6 +176,16 @@ a {
   margin-bottom: 10px;
 }
 
+.doc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.raw {
+  font-size: 12px;
+}
+
 .keybox {
   margin-top: 12px;
   padding: 12px 14px;

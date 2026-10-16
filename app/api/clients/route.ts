@@ -9,6 +9,7 @@ import {
   serveUrl,
   type Overrides,
 } from "@/lib/metadata";
+import { clientId as hashId, putClient } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
@@ -21,11 +22,19 @@ export async function POST(request: Request) {
     // empty / non-JSON body → all defaults
   }
 
-  // No overrides → the clean canonical URL; otherwise encode them into the path.
-  const hasOverrides = Object.keys(overrides).length > 0;
-  const path = hasOverrides
-    ? `/c/${encodeConfig(overrides)}/client-metadata.json`
-    : "/oauth/client-metadata.json";
+  // A jwks is too big for the URL → persist and issue a short id. Otherwise the
+  // config fits in the path (no overrides → the clean canonical URL).
+  let path: string;
+  if (overrides.jwks && typeof overrides.jwks === "object") {
+    const canonical = JSON.stringify(overrides);
+    const id = await hashId(canonical);
+    await putClient(id, canonical);
+    path = `/s/${id}/client-metadata.json`;
+  } else if (Object.keys(overrides).length > 0) {
+    path = `/c/${encodeConfig(overrides)}/client-metadata.json`;
+  } else {
+    path = "/oauth/client-metadata.json";
+  }
   const clientId = serveUrl(request.headers, path);
 
   return new Response(
