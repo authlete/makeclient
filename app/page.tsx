@@ -4,18 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import {
   buildMetadata,
   encodeConfig,
+  CONFIDENTIAL_GRANTS,
   DEFAULTS,
   DEFAULT_REDIRECT_URIS,
   type Overrides,
 } from "@/lib/metadata";
 
-const BASE_GRANTS = [
-  "authorization_code",
-  "refresh_token",
-  "urn:ietf:params:oauth:grant-type:device_code",
-];
-// client_credentials needs client authentication — valid only with private_key_jwt.
-const CONFIDENTIAL_GRANTS = ["client_credentials"];
+// A public client's grants; a confidential one adds CONFIDENTIAL_GRANTS.
+const BASE_GRANTS = DEFAULTS.grant_types as string[];
 
 // CIMD forbids shared-secret auth; `none` and `private_key_jwt` are the two
 // asymmetric methods a public document can support.
@@ -85,14 +81,16 @@ export default function Home() {
       ? [...BASE_GRANTS, ...CONFIDENTIAL_GRANTS]
       : BASE_GRANTS;
 
+  // private_key_jwt can authenticate, so default its confidential grants on;
+  // a public client drops them. Keyed on authMethod so manual toggles stick.
   useEffect(() => {
-    if (
-      authMethod !== "private_key_jwt" &&
-      grants.includes("client_credentials")
-    ) {
-      setGrants((g) => g.filter((x) => x !== "client_credentials"));
-    }
-  }, [authMethod, grants]);
+    setGrants((g) => {
+      const base = g.filter((x) => !CONFIDENTIAL_GRANTS.includes(x));
+      return authMethod === "private_key_jwt"
+        ? [...base, ...CONFIDENTIAL_GRANTS]
+        : base;
+    });
+  }, [authMethod]);
 
   const toggle = (value: string) =>
     setGrants((g) =>
@@ -224,7 +222,9 @@ export default function Home() {
                 checked={grants.includes(g)}
                 onChange={() => toggle(g)}
               />
-              {g.replace("urn:ietf:params:oauth:grant-type:", "")}
+              {g
+                .replace("urn:ietf:params:oauth:grant-type:", "")
+                .replace("urn:openid:params:grant-type:", "")}
             </label>
           ))}
         </div>

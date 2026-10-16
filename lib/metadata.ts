@@ -30,6 +30,14 @@ export const DEFAULTS: Overrides = {
   scope: "openid profile email",
 };
 
+/** Grants that require client authentication, so they're valid only with
+ * private_key_jwt. A confidential client gets these on by default (it holds a
+ * key); a public client never does. */
+export const CONFIDENTIAL_GRANTS = [
+  "client_credentials",
+  "urn:openid:params:grant-type:ciba",
+];
+
 /** Drop undefined/null/""/[] so overrides only replace what they actually set. */
 function prune(obj: Overrides): Overrides {
   const out: Overrides = {};

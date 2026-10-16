@@ -4,7 +4,13 @@
 // private_key_jwt without supplying your own jwks. The URL *is* the metadata —
 // fetch it to see the document — so the response stays lean.
 
-import { encodeConfig, serveUrl, type Overrides } from "@/lib/metadata";
+import {
+  CONFIDENTIAL_GRANTS,
+  DEFAULTS,
+  encodeConfig,
+  serveUrl,
+  type Overrides,
+} from "@/lib/metadata";
 import { clientId as hashId, putClient } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +64,22 @@ export async function POST(request: Request) {
     const { publicJwk, privateJwk } = await generateKeypair();
     overrides = { ...overrides, jwks: { keys: [publicJwk] } };
     privateKey = privateJwk;
+  }
+
+  // A private_key_jwt client can authenticate, so default it to the full grant
+  // set — including client_credentials and CIBA — unless the caller set their
+  // own grant_types. The hosted document then advertises them all.
+  if (
+    overrides.token_endpoint_auth_method === "private_key_jwt" &&
+    !overrides.grant_types
+  ) {
+    overrides = {
+      ...overrides,
+      grant_types: [
+        ...(DEFAULTS.grant_types as string[]),
+        ...CONFIDENTIAL_GRANTS,
+      ],
+    };
   }
 
   // A jwks is too big for the URL → persist and issue a short id. Otherwise the
