@@ -18,7 +18,7 @@ const BASE_GRANTS = [
 const CONFIDENTIAL_GRANTS = ["client_credentials"];
 
 // CIMD forbids shared-secret auth; `none` and `private_key_jwt` are the two
-// methods both valid and usable against a browser/native debugger.
+// asymmetric methods a public document can support.
 const AUTH_METHODS = ["none", "private_key_jwt"] as const;
 
 const eq = (a: string[], b: string[]) =>
@@ -86,7 +86,10 @@ export default function Home() {
       : BASE_GRANTS;
 
   useEffect(() => {
-    if (authMethod !== "private_key_jwt" && grants.includes("client_credentials")) {
+    if (
+      authMethod !== "private_key_jwt" &&
+      grants.includes("client_credentials")
+    ) {
       setGrants((g) => g.filter((x) => x !== "client_credentials"));
     }
   }, [authMethod, grants]);
@@ -153,7 +156,8 @@ export default function Home() {
       });
       const d = await r.json();
       setHostedId(await shortId(overrides));
-      if (d.client_id) setPreviewId(new URL(d.client_id).pathname.split("/")[2]);
+      if (d.client_id)
+        setPreviewId(new URL(d.client_id).pathname.split("/")[2]);
     } finally {
       setHosting(false);
     }
@@ -170,13 +174,33 @@ export default function Home() {
     <main>
       <h1>makeclient</h1>
       <p className="sub">
-        Generate and host an OAuth{" "}
-        <strong>Client ID Metadata Document</strong> (CIMD). The URL below is a
-        working <code>client_id</code> — no registration. Defaults give a public,
-        PKCE-ready client pointed at the oauth-playground.
+        Hosted OAuth client metadata (<strong>CIMD</strong>) — the URL is a
+        usable <code>client_id</code>.
       </p>
 
       <div className="panel">
+        <p className="lead">Your client_id</p>
+        <div className="url">
+          <input type="text" readOnly value={clientId} />
+          {confidential && !hosted ? (
+            <button
+              type="button"
+              onClick={hostClient}
+              disabled={hosting || !previewId}
+            >
+              {hosting ? "Creating…" : "Create"}
+            </button>
+          ) : (
+            <button type="button" onClick={() => copy(clientId, "url")}>
+              {copied ? "Copied" : "Copy"}
+            </button>
+          )}
+        </div>
+        {confidential && hosted && <p className="hint">Created ✓</p>}
+      </div>
+
+      <div className="panel">
+        <p className="lead">Configure</p>
         <label>client_name</label>
         <input
           type="text"
@@ -206,45 +230,38 @@ export default function Home() {
         </div>
 
         <label>token_endpoint_auth_method</label>
-        <select value={authMethod} onChange={(e) => setAuthMethod(e.target.value)}>
+        <select
+          value={authMethod}
+          onChange={(e) => setAuthMethod(e.target.value)}
+        >
           {AUTH_METHODS.map((m) => (
             <option key={m} value={m}>
               {m}
             </option>
           ))}
         </select>
-        <p className="hint">
-          CIMD forbids shared secrets — only a public client (<code>none</code>{" "}
-          + PKCE) or <code>private_key_jwt</code> are valid.
-        </p>
-
         {authMethod === "private_key_jwt" && (
           <div className="keybox">
-            <div className="row" style={{ marginTop: 0 }}>
-              <strong style={{ fontSize: 13 }}>
-                private_key_jwt keypair (ES256)
-              </strong>
-              <button className="ghost" type="button" onClick={() => void generateKey()}>
+            <div className="keybox-head">
+              <span className="keybox-title">Keypair · ES256</span>
+              <button
+                className="ghost"
+                type="button"
+                onClick={() => void generateKey()}
+              >
                 Regenerate
               </button>
             </div>
-            <p className="hint">
-              The public key is embedded in the document. The private key below{" "}
-              <strong>stays in your browser</strong> — copy it into the
-              debugger&apos;s <code>private_key_jwt</code> key field.
-            </p>
             {privateJwk && (
-              <>
-                <div className="row" style={{ marginTop: 6 }}>
-                  <span className="lead" style={{ margin: 0 }}>
-                    Private key (JWK)
-                  </span>
+              <div className="secret">
+                <div className="secret-head">
+                  <span>Private key (JWK) — stays in your browser</span>
                   <button type="button" onClick={() => copy(privateJwk, "key")}>
-                    {copiedKey ? "Copied" : "Copy private key"}
+                    {copiedKey ? "Copied" : "Copy"}
                   </button>
                 </div>
-                <pre style={{ marginTop: 6 }}>{privateJwk}</pre>
-              </>
+                <pre>{privateJwk}</pre>
+              </div>
             )}
           </div>
         )}
@@ -255,13 +272,14 @@ export default function Home() {
           value={scope}
           onChange={(e) => setScope(e.target.value)}
         />
-        <p className="hint">Free-form per RFC 7591 — CIMD does not restrict scope.</p>
 
         <details style={{ marginTop: 16 }}>
-          <summary>Advanced — any other RFC 7591 field (raw JSON)</summary>
+          <summary>Advanced (raw JSON)</summary>
           <textarea
             rows={5}
-            placeholder={'{\n  "logo_uri": "https://…/logo.png",\n  "contacts": ["dev@example.com"]\n}'}
+            placeholder={
+              '{\n  "logo_uri": "https://…/logo.png",\n  "contacts": ["dev@example.com"]\n}'
+            }
             value={raw}
             onChange={(e) => setRaw(e.target.value)}
           />
@@ -271,29 +289,6 @@ export default function Home() {
             </p>
           )}
         </details>
-      </div>
-
-      <div className="panel">
-        <p className="lead">Your client_id</p>
-        <div className="url">
-          <input type="text" readOnly value={clientId} />
-          {confidential && !hosted ? (
-            <button type="button" onClick={hostClient} disabled={hosting || !previewId}>
-              {hosting ? "Hosting…" : "Host client →"}
-            </button>
-          ) : (
-            <button type="button" onClick={() => copy(clientId, "url")}>
-              {copied ? "Copied" : "Copy"}
-            </button>
-          )}
-        </div>
-        {confidential && (
-          <p className="hint">
-            {hosted
-              ? "Hosted ✓"
-              : "Carries a key, so it's served from a short hosted URL — Host it and the URL goes live."}
-          </p>
-        )}
       </div>
 
       <div className="panel">

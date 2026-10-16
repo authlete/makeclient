@@ -1,81 +1,41 @@
 # makeclient
 
-Generate and **host** an OAuth [Client ID Metadata Document][cimd] (CIMD) at a
-URL you can use directly as a `client_id` — no registration, no database, no
-backend state. The URL *is* the client.
-
-Think "mkjwk, but for a whole client": mkjwk hands you a key but won't host it;
-validators lint a document you host yourself. makeclient hosts a working one.
+Host an OAuth [Client ID Metadata Document][cimd] (CIMD) at a URL you use
+directly as a `client_id` — no registration. The URL _is_ the client.
 
 [cimd]: https://datatracker.ietf.org/doc/draft-ietf-oauth-client-id-metadata-document/
 
-## How it works
-
-A CIMD `client_id` is a URL; the authorization server fetches the metadata
-document from it, and the document's `client_id` MUST equal that URL (and SHOULD
-NOT carry a query). So the config is encoded **in the path** — the app is
-completely stateless.
-
-| Route | Purpose |
-| --- | --- |
-| `GET /oauth/client-metadata.json` | the all-defaults public client (clean URL) |
-| `GET /c/<base64url-overrides>/client-metadata.json` | a customized document |
-| `POST /api/clients` | `{overrides}` → `{ client_id, metadata }` (for tools) |
-| `/` | a thin form UI over the same builder |
-
-`lib/metadata.ts` is the single source of truth for defaults, encoding, and the
-document shape; every route and the UI go through it.
-
-## Defaults (override any of them)
-
-Only `client_id` is mandatory, and the server always sets it to the serving URL.
-Everything else defaults to a public, PKCE-ready client:
-
-```json
-{
-  "client_name": "makeclient test client",
-  "redirect_uris": [
-    "http://localhost:5173/callback",
-    "http://127.0.0.1:5173/callback",
-    "https://authlete-playground.vercel.app/callback"
-  ],
-  "grant_types": ["authorization_code", "refresh_token", "urn:ietf:params:oauth:grant-type:device_code"],
-  "response_types": ["code"],
-  "token_endpoint_auth_method": "none",
-  "scope": "openid profile email"
-}
-```
-
 ## Use it
 
-```bash
-# default public client
-curl https://makeclient.dev/oauth/client-metadata.json
+Open the UI (`/`), or call the API:
 
-# customized — get back the client_id URL to use
-curl -s https://makeclient.dev/api/clients \
-  -H 'content-type: application/json' \
-  -d '{"redirect_uris":["https://app.example/cb"],"scope":"openid email"}'
-# → { "client_id": "https://makeclient.dev/c/<...>/client-metadata.json", "metadata": { ... } }
+```bash
+# public client
+curl -s makeclient.dev/api/clients -d '{"redirect_uris":["https://app.example/cb"]}'
+# → { "client_id": ".../c/<cfg>/client-metadata.json" }
+
+# private_key_jwt — mints a keypair: public key in the doc, private key returned (never stored)
+curl -s makeclient.dev/api/clients -d '{"token_endpoint_auth_method":"private_key_jwt"}'
+# → { "client_id": ".../s/<id>/client-metadata.json", "private_key": { ...JWK... } }
 ```
 
-Then paste the `client_id` URL into any CIMD-capable AS (or the oauth-playground
-as a manual `client_id`).
+Paste `client_id` into any CIMD-capable AS (and `private_key` as its signing
+key). `GET` the `client_id` to see the document. Defaults give a public,
+PKCE-ready client (auth code + refresh + device); override any RFC 7591 field.
+
+## How it works
+
+Public clients encode the config in the URL path (stateless). A client with a
+`jwks` is too big for the URL, so it's stored under a short id — Vercel Blob in
+prod, a local `.data/` folder in dev. `lib/metadata.ts` is the single source of
+truth; the server always sets `client_id` to the serving URL (CIMD requires it).
 
 ## Develop
 
 ```bash
 npm install
-npm run dev     # http://localhost:3000
-npm run build
+npm run dev        # localhost:3000
 ```
 
-Deploys to Vercel with zero config (auto-detected Next.js). The document's
-`client_id` is derived from the request host, so it is correct on any domain.
-
-## Not yet
-
-Confidential clients (`private_key_jwt`) need a public key in the document; you
-can already supply your own `jwks`/`jwks_uri` under **Advanced**. Server-side key
-generation + dispensing (the "handed a private key" flow) is the next step and
-is deliberately out of this stateless v1.
+Deploys to Vercel with zero config. For hosted confidential clients, add a Blob
+store (provides `BLOB_READ_WRITE_TOKEN`); dev falls back to `.data/`.

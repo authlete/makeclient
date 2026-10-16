@@ -9,16 +9,14 @@
 
 export type Overrides = Record<string, unknown>;
 
-/** Redirect URIs used when the caller doesn't specify any: the oauth-playground
- * debugger (local + deployed) plus a loopback variant. Override to your own. */
+/** Redirect URIs used when the caller specifies none. Override to your own. */
 export const DEFAULT_REDIRECT_URIS = [
   "http://localhost:5173/callback",
-  "http://127.0.0.1:5173/callback",
   "https://authlete-playground.vercel.app/callback",
 ];
 
 /** Defaults for a public (token_endpoint_auth_method=none) auth-code + refresh +
- * device client — the common case for a browser/native debugger. */
+ * device client — the common case. */
 export const DEFAULTS: Overrides = {
   client_name: "makeclient test client",
   redirect_uris: DEFAULT_REDIRECT_URIS,
@@ -45,8 +43,8 @@ function prune(obj: Overrides): Overrides {
 
 // CIMD rules out shared-secret client auth (the document is public). Of the
 // asymmetric methods the spec leaves open, this tool supports the two that are
-// actually usable against a browser/native debugger: `none` (public + PKCE) and
-// `private_key_jwt`. Whitelist, not blacklist — anything else falls back to none.
+// actually usable here: `none` (public + PKCE) and `private_key_jwt`.
+// Whitelist, not blacklist — anything else falls back to none.
 const PERMITTED_AUTH = new Set(["none", "private_key_jwt"]);
 // A public document MUST NOT carry private key material (§4.1).
 const PRIVATE_JWK_MEMBERS = ["d", "p", "q", "dp", "dq", "qi", "k", "oth"];
@@ -84,7 +82,10 @@ function enforceCompliance(doc: Overrides): Overrides {
 /** Build the document: defaults ← overrides, with `client_id` forced to the
  * serving URL (never overridable — the spec ties identity to the URL), then
  * stripped of anything a public CIMD document must not contain. */
-export function buildMetadata(overrides: Overrides, clientId: string): Overrides {
+export function buildMetadata(
+  overrides: Overrides,
+  clientId: string,
+): Overrides {
   const merged = prune({ ...DEFAULTS, ...prune(overrides) });
   delete merged.client_id; // identity comes from the URL, not the body
   return enforceCompliance(prune({ client_id: clientId, ...merged }));
@@ -127,7 +128,7 @@ export function serveUrl(headers: Headers, path: string): string {
   return `${proto}://${host}${path}`;
 }
 
-/** 200 application/json with permissive CORS (the document is public; debuggers
+/** 200 application/json with permissive CORS (the document is public; clients
  * fetch it client-side to inspect it — the AS fetches it server-side). */
 export function metadataResponse(doc: Overrides): Response {
   return new Response(JSON.stringify(doc, null, 2), {

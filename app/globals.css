@@ -7,6 +7,7 @@
   --accent: #4f8cff;
   --accent-ink: #fff;
   --ok: #39b86b;
+  --warn: #e0a84a;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
@@ -18,7 +19,12 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font:
+    14px/1.5 system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    sans-serif;
 }
 
 main {
@@ -194,7 +200,45 @@ a {
   background: #0e1118;
 }
 
-.keybox pre {
+.keybox-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.keybox-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* The private key — visually flagged as sensitive material. */
+.secret {
+  margin-top: 10px;
+  border: 1px solid color-mix(in oklch, var(--warn) 45%, var(--border));
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.secret-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px 7px 12px;
+  background: color-mix(in oklch, var(--warn) 12%, transparent);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: color-mix(in oklch, var(--warn) 65%, var(--text));
+}
+
+.secret-head button {
+  padding: 4px 11px;
+  font-size: 12px;
+}
+
+.secret pre {
+  margin: 0;
   max-height: 220px;
   overflow: auto;
+  border: 0;
+  border-radius: 0;
 }
