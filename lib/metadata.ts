@@ -43,12 +43,53 @@ function prune(obj: Overrides): Overrides {
   return out;
 }
 
+// CIMD (§4.1) forbids shared-secret client auth and any secret / private key
+// material in the public document. Enforced here so it holds on every path —
+// UI, API, or a hand-crafted URL — not just by hiding options in the form.
+const FORBIDDEN_AUTH = new Set([
+  "client_secret_basic",
+  "client_secret_post",
+  "client_secret_jwt",
+]);
+const PRIVATE_JWK_MEMBERS = ["d", "p", "q", "dp", "dq", "qi", "k", "oth"];
+
+function stripPrivateKeys(jwks: unknown): unknown {
+  if (!jwks || typeof jwks !== "object") return jwks;
+  const keys = (jwks as { keys?: unknown }).keys;
+  if (!Array.isArray(keys)) return jwks;
+  return {
+    ...(jwks as object),
+    keys: keys.map((k) => {
+      if (!k || typeof k !== "object") return k;
+      const pub = { ...(k as Record<string, unknown>) };
+      for (const m of PRIVATE_JWK_MEMBERS) delete pub[m];
+      return pub;
+    }),
+  };
+}
+
+/** Remove anything the spec forbids in a public CIMD document. */
+function enforceCompliance(doc: Overrides): Overrides {
+  const out = { ...doc };
+  delete out.client_secret;
+  delete out.client_secret_expires_at;
+  if (
+    typeof out.token_endpoint_auth_method === "string" &&
+    FORBIDDEN_AUTH.has(out.token_endpoint_auth_method)
+  ) {
+    out.token_endpoint_auth_method = "none"; // no shared symmetric secret
+  }
+  if ("jwks" in out) out.jwks = stripPrivateKeys(out.jwks);
+  return out;
+}
+
 /** Build the document: defaults ← overrides, with `client_id` forced to the
- * serving URL (never overridable — the spec ties identity to the URL). */
+ * serving URL (never overridable — the spec ties identity to the URL), then
+ * stripped of anything a public CIMD document must not contain. */
 export function buildMetadata(overrides: Overrides, clientId: string): Overrides {
   const merged = prune({ ...DEFAULTS, ...prune(overrides) });
   delete merged.client_id; // identity comes from the URL, not the body
-  return { client_id: clientId, ...merged };
+  return enforceCompliance(prune({ client_id: clientId, ...merged }));
 }
 
 // ── config <-> path segment (base64url of the overrides JSON) ────────────────

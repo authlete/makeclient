@@ -18,13 +18,14 @@ const GRANT_OPTIONS = [
 
 const RESPONSE_OPTIONS = ["code", "token", "id_token"] as const;
 
+// CIMD forbids shared-secret methods (client_secret_*) — only `none` and
+// asymmetric/key-based methods are valid for a public document.
 const AUTH_METHODS = [
   "none",
-  "client_secret_basic",
-  "client_secret_post",
   "private_key_jwt",
   "tls_client_auth",
   "self_signed_tls_client_auth",
+  "attest_jwt_client_auth",
 ] as const;
 
 const eq = (a: string[], b: string[]) =>
