@@ -30,13 +30,12 @@ export const DEFAULTS: Overrides = {
   scope: "openid profile email",
 };
 
+const CIBA_GRANT = "urn:openid:params:grant-type:ciba";
+
 /** Grants that require client authentication, so they're valid only with
  * private_key_jwt. A confidential client gets these on by default (it holds a
  * key); a public client never does. */
-export const CONFIDENTIAL_GRANTS = [
-  "client_credentials",
-  "urn:openid:params:grant-type:ciba",
-];
+export const CONFIDENTIAL_GRANTS = ["client_credentials", CIBA_GRANT];
 
 /** Drop undefined/null/""/[] so overrides only replace what they actually set. */
 function prune(obj: Overrides): Overrides {
@@ -109,6 +108,15 @@ function enforceCompliance(doc: Overrides): Overrides {
     typeof out.token_endpoint_auth_signing_alg !== "string"
   ) {
     out.token_endpoint_auth_signing_alg = firstKeyAlg(out.jwks) ?? "ES256";
+  }
+  // CIBA requires a token delivery mode registered. The playground polls, so
+  // default to "poll" when the grant is present and no mode was set.
+  if (
+    Array.isArray(out.grant_types) &&
+    out.grant_types.includes(CIBA_GRANT) &&
+    typeof out.backchannel_token_delivery_mode !== "string"
+  ) {
+    out.backchannel_token_delivery_mode = "poll";
   }
   return out;
 }
