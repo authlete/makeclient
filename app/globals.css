@@ -1,6 +1,7 @@
 :root {
   --bg: #0b0d12;
   --panel: #12151c;
+  --inset: #0e1118;
   --border: #242a35;
   --text: #e6e9ef;
   --muted: #8b93a3;
@@ -8,7 +9,25 @@
   --accent-ink: #fff;
   --ok: #39b86b;
   --warn: #e0a84a;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas,
+    monospace;
+}
+
+/* Follow the OS. No toggle, no stored state — the palette just tracks the
+   system preference. Only the surface/ink tokens flip; everything else reuses
+   the vars above. */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --inset: #f1f3f7;
+    --border: #e3e7ee;
+    --text: #1a1d26;
+    --muted: #5f6775;
+    --accent: #2f6fe0;
+    --ok: #1a9b57;
+    --warn: #b27612;
+  }
 }
 
 * {
@@ -20,7 +39,8 @@ body {
   background: var(--bg);
   color: var(--text);
   font:
-    14px/1.5 system-ui,
+    14px/1.5 var(--font-geist),
+    system-ui,
     -apple-system,
     Segoe UI,
     Roboto,
@@ -70,7 +90,7 @@ input[type="text"],
 textarea,
 select {
   width: 100%;
-  background: #0e1118;
+  background: var(--inset);
   border: 1px solid var(--border);
   border-radius: 7px;
   color: var(--text);
@@ -160,7 +180,7 @@ button.ghost {
 }
 
 pre {
-  background: #0e1118;
+  background: var(--inset);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 14px;
@@ -197,7 +217,7 @@ a {
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #0e1118;
+  background: var(--inset);
 }
 
 .keybox-head {
