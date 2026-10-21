@@ -9,7 +9,8 @@
   --accent-ink: #fff;
   --ok: #39b86b;
   --warn: #e0a84a;
-  --mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas,
+  --mono:
+    var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas,
     monospace;
 }
 

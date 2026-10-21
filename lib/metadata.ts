@@ -31,11 +31,17 @@ export const DEFAULTS: Overrides = {
 };
 
 const CIBA_GRANT = "urn:openid:params:grant-type:ciba";
+const JWT_BEARER_GRANT = "urn:ietf:params:oauth:grant-type:jwt-bearer";
 
 /** Grants that require client authentication, so they're valid only with
  * private_key_jwt. A confidential client gets these on by default (it holds a
- * key); a public client never does. */
-export const CONFIDENTIAL_GRANTS = ["client_credentials", CIBA_GRANT];
+ * key); a public client never does. jwt-bearer (RFC 7523) rides here too: the
+ * client signs the assertion with the same key it authenticates with. */
+export const CONFIDENTIAL_GRANTS = [
+  "client_credentials",
+  CIBA_GRANT,
+  JWT_BEARER_GRANT,
+];
 
 /** Drop undefined/null/""/[] so overrides only replace what they actually set. */
 function prune(obj: Overrides): Overrides {
