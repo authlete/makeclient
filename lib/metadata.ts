@@ -28,6 +28,13 @@ export const DEFAULTS: Overrides = {
   response_types: ["code"],
   token_endpoint_auth_method: "none",
   scope: "openid profile email",
+  // RAR (RFC 9396): the authorization_details types this client may request.
+  // Overridable via the advanced custom JSON.
+  authorization_details_types: [
+    "Accounts",
+    "CreditCardAccounts",
+    "SinglePayments",
+  ],
 };
 
 const CIBA_GRANT = "urn:openid:params:grant-type:ciba";
