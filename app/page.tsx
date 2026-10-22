@@ -22,6 +22,44 @@ const eq = (a: string[], b: string[]) =>
 
 type Jwk = Record<string, unknown>;
 
+const grantLabel = (g: string) =>
+  g
+    .replace("urn:ietf:params:oauth:grant-type:", "")
+    .replace("urn:openid:params:grant-type:", "");
+
+// The official Authlete logo, composed from the shield + wordmark SVGs exactly
+// as positioned in the Figma design (same insets at both sizes).
+function AuthleteLogo({ variant }: { variant: "header" | "footer" }) {
+  const p = variant === "header" ? "hdr" : "ftr";
+  return (
+    <span
+      className={`authlete-logo authlete-logo--${variant}`}
+      aria-label="Authlete"
+    >
+      <span className="al-shield">
+        <img src={`/authlete/${p}-shield.svg`} alt="" />
+      </span>
+      <span className="al-wordmark">
+        <img src={`/authlete/${p}-wordmark.svg`} alt="" />
+      </span>
+    </span>
+  );
+}
+
+// Minimal JSON highlighter: property names in Authlete blue, everything else in
+// the normal text color — matching the Document panel in the design.
+function highlightJson(value: unknown): string {
+  const json = JSON.stringify(value, null, 2);
+  const esc = json
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return esc.replace(
+    /("(?:[^"\\]|\\.)*")(\s*:)/g,
+    '<span class="json-key">$1</span>$2',
+  );
+}
+
 async function shortId(overrides: Overrides): Promise<string> {
   const digest = await crypto.subtle.digest(
     "SHA-256",
@@ -37,13 +75,16 @@ export default function Home() {
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
 
-  const [clientName, setClientName] = useState(DEFAULTS.client_name as string);
+  // client_name and scope default to empty so the field shows the default as a
+  // placeholder (matching the design); an empty value is pruned, so the
+  // document still carries the default.
+  const [clientName, setClientName] = useState("");
   const [redirects, setRedirects] = useState(DEFAULT_REDIRECT_URIS.join("\n"));
   const [grants, setGrants] = useState<string[]>(
     DEFAULTS.grant_types as string[],
   );
   const [authMethod, setAuthMethod] = useState("none");
-  const [scope, setScope] = useState(DEFAULTS.scope as string);
+  const [scope, setScope] = useState("");
   const [raw, setRaw] = useState("");
 
   const [publicJwk, setPublicJwk] = useState<Jwk | null>(null);
@@ -126,7 +167,7 @@ export default function Home() {
 
   // Public clients encode into the URL (stateless). Confidential clients are too
   // big for the URL, so they get a short stored id — the id is the hash of the
-  // config, computed here for a live preview and uploaded on "Host".
+  // config, computed here for a live preview and uploaded on "Create".
   const [previewId, setPreviewId] = useState("");
   const [hostedId, setHostedId] = useState(""); // which config is actually stored
   const [hosting, setHosting] = useState(false);
@@ -169,141 +210,223 @@ export default function Home() {
   };
 
   return (
-    <main>
-      <h1>makeclient</h1>
-      <p className="sub">
-        Hosted OAuth client metadata (<strong>CIMD</strong>) — the URL is a
-        usable <code>client_id</code>.
-      </p>
-
-      <div className="panel">
-        <p className="lead">Your client_id</p>
-        <div className="url">
-          <input type="text" readOnly value={clientId} />
-          {confidential && !hosted ? (
-            <button
-              type="button"
-              onClick={hostClient}
-              disabled={hosting || !previewId}
-            >
-              {hosting ? "Creating…" : "Create"}
-            </button>
-          ) : (
-            <button type="button" onClick={() => copy(clientId, "url")}>
-              {copied ? "Copied" : "Copy"}
-            </button>
-          )}
+    <>
+      <header className="site-header">
+        <div className="brand">
+          <AuthleteLogo variant="header" />
+          <span className="brand-sep">/</span>
+          <span className="brand-product">
+            <span className="brand-name">makeclient</span>
+            <span className="badge">CIMD</span>
+          </span>
         </div>
-        {confidential && hosted && <p className="hint">Created ✓</p>}
-      </div>
+        <nav>
+          <a
+            className="btn btn-primary"
+            href="https://www.authlete.com/"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Try Authlete free
+          </a>
+        </nav>
+      </header>
 
-      <div className="panel">
-        <p className="lead">Configure</p>
-        <label>client_name</label>
-        <input
-          type="text"
-          value={clientName}
-          onChange={(e) => setClientName(e.target.value)}
-        />
+      <main className="page">
+        <section className="hero">
+          <h1>Instant CIMD client</h1>
+          <p className="hero-sub">
+            Hosted OAuth Client ID Metadata Document (CIMD). The URL is a usable
+            client_id.
+          </p>
+        </section>
 
-        <label>redirect_uris (one per line)</label>
-        <textarea
-          rows={3}
-          value={redirects}
-          onChange={(e) => setRedirects(e.target.value)}
-        />
-
-        <label>grant_types</label>
-        <div className="checks">
-          {grantOptions.map((g) => (
-            <label key={g}>
-              <input
-                type="checkbox"
-                checked={grants.includes(g)}
-                onChange={() => toggle(g)}
-              />
-              {g
-                .replace("urn:ietf:params:oauth:grant-type:", "")
-                .replace("urn:openid:params:grant-type:", "")}
-            </label>
-          ))}
-        </div>
-
-        <label>token_endpoint_auth_method</label>
-        <select
-          value={authMethod}
-          onChange={(e) => setAuthMethod(e.target.value)}
-        >
-          {AUTH_METHODS.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
-        {authMethod === "private_key_jwt" && (
-          <div className="keybox">
-            <div className="keybox-head">
-              <span className="keybox-title">Keypair · ES256</span>
-              <button
-                className="ghost"
-                type="button"
-                onClick={() => void generateKey()}
-              >
-                Regenerate
-              </button>
+        <section className="card clientid-card">
+          <p className="clientid-label">Your client_id</p>
+          <div className="clientid-row">
+            <div className="clientid-value">
+              <input type="text" readOnly value={clientId} />
             </div>
-            {privateJwk && (
-              <div className="secret">
-                <div className="secret-head">
-                  <span>Private key (JWK) — stays in your browser</span>
-                  <button type="button" onClick={() => copy(privateJwk, "key")}>
-                    {copiedKey ? "Copied" : "Copy"}
-                  </button>
-                </div>
-                <pre>{privateJwk}</pre>
-              </div>
+            {confidential && !hosted ? (
+              <button
+                type="button"
+                className="btn btn-tertiary"
+                onClick={hostClient}
+                disabled={hosting || !previewId}
+              >
+                {hosting ? "Creating…" : "Create"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-tertiary"
+                onClick={() => copy(clientId, "url")}
+              >
+                {copied ? "Copied" : "Copy"}
+              </button>
             )}
           </div>
-        )}
+          {confidential && hosted && <p className="hint">Created ✓</p>}
+        </section>
 
-        <label>scope</label>
-        <input
-          type="text"
-          value={scope}
-          onChange={(e) => setScope(e.target.value)}
-        />
+        <div className="columns">
+          <section className="card">
+            <div className="card-header">
+              <h2>Configure</h2>
+            </div>
+            <div className="form">
+              <div className="field field-input">
+                <label htmlFor="client_name">client_name</label>
+                <input
+                  id="client_name"
+                  className="input"
+                  type="text"
+                  placeholder={DEFAULTS.client_name as string}
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                />
+              </div>
 
-        <details style={{ marginTop: 16 }}>
-          <summary>Advanced (raw JSON)</summary>
-          <textarea
-            rows={5}
-            placeholder={
-              '{\n  "logo_uri": "https://…/logo.png",\n  "contacts": ["dev@example.com"]\n}'
-            }
-            value={raw}
-            onChange={(e) => setRaw(e.target.value)}
-          />
-          {rawError && (
-            <p className="hint" style={{ color: "#e0603a" }}>
-              {rawError}
-            </p>
-          )}
-        </details>
-      </div>
+              <div className="field field-redirect">
+                <label htmlFor="redirect_uris">
+                  redirect_uris (one per line)
+                </label>
+                <textarea
+                  id="redirect_uris"
+                  className="textarea"
+                  rows={3}
+                  value={redirects}
+                  onChange={(e) => setRedirects(e.target.value)}
+                />
+              </div>
 
-      <div className="panel">
-        <div className="doc-head">
-          <p className="lead" style={{ margin: 0 }}>
-            Document
-          </p>
-          {(!confidential || hosted) && (
-            <a className="raw" href={path} target="_blank" rel="noreferrer">
-              Open ↗
-            </a>
-          )}
+              <div className="field">
+                <span className="label">grant_types</span>
+                <div className="checks">
+                  {grantOptions.map((g) => (
+                    <label className="check" key={g}>
+                      <input
+                        type="checkbox"
+                        checked={grants.includes(g)}
+                        onChange={() => toggle(g)}
+                      />
+                      {grantLabel(g)}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="field">
+                <span className="label">token_endpoint_auth_method</span>
+                <div className="radios">
+                  {AUTH_METHODS.map((m) => (
+                    <label className="radio" key={m}>
+                      <input
+                        type="radio"
+                        name="auth_method"
+                        checked={authMethod === m}
+                        onChange={() => setAuthMethod(m)}
+                      />
+                      {m}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {authMethod === "private_key_jwt" && (
+                <div className="keybox">
+                  <div className="keybox-head">
+                    <span className="keybox-title">Keypair · ES256</span>
+                    <button
+                      className="btn-regen"
+                      type="button"
+                      onClick={() => void generateKey()}
+                    >
+                      Regenerate
+                    </button>
+                  </div>
+                  {privateJwk && (
+                    <div className="secret">
+                      <div className="secret-head">
+                        <span>Private key (JWK) — stays in your browser</span>
+                        <button
+                          type="button"
+                          onClick={() => copy(privateJwk, "key")}
+                        >
+                          {copiedKey ? "Copied" : "Copy"}
+                        </button>
+                      </div>
+                      <pre>{privateJwk}</pre>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="field field-input">
+                <label htmlFor="scope">scope</label>
+                <input
+                  id="scope"
+                  className="input"
+                  type="text"
+                  placeholder={DEFAULTS.scope as string}
+                  value={scope}
+                  onChange={(e) => setScope(e.target.value)}
+                />
+              </div>
+
+              <details className="advanced">
+                <summary>
+                  <img
+                    className="chevron"
+                    src="/authlete/chevron-right.svg"
+                    alt=""
+                  />
+                  Advanced (raw JSON)
+                </summary>
+                <textarea
+                  className="textarea"
+                  rows={5}
+                  placeholder={
+                    '{\n  "logo_uri": "https://…/logo.png",\n  "contacts": ["dev@example.com"]\n}'
+                  }
+                  value={raw}
+                  onChange={(e) => setRaw(e.target.value)}
+                />
+                {rawError && <p className="hint error">{rawError}</p>}
+              </details>
+            </div>
+          </section>
+
+          <section className="card">
+            <div className="card-header">
+              <h2>Document</h2>
+              {(!confidential || hosted) && (
+                <a
+                  className="btn btn-ghost"
+                  href={path}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open ↗
+                </a>
+              )}
+            </div>
+            <div className="code">
+              <pre dangerouslySetInnerHTML={{ __html: highlightJson(doc) }} />
+            </div>
+          </section>
         </div>
-        <pre>{JSON.stringify(doc, null, 2)}</pre>
-      </div>
-    </main>
+      </main>
+
+      <footer className="site-footer">
+        <div className="footer-content">
+          <AuthleteLogo variant="footer" />
+          <p className="copyright">
+            © 2026 Authlete, Inc. All rights reserved.
+          </p>
+          <p className="lang">English</p>
+        </div>
+      </footer>
+    </>
   );
 }
