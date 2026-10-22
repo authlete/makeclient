@@ -35,13 +35,16 @@
   box-sizing: border-box;
 }
 
-html,
-body {
-  height: 100%;
+html {
+  min-height: 100%;
 }
 
 body {
   margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
   background: var(--surface-base);
   color: var(--text-normal);
   font-family: var(--font-ui);
@@ -187,6 +190,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 32px;
+  /* Grow to fill the viewport so the footer pins to the bottom on short
+     content, while still flowing down when the content is tall. */
+  flex: 1 0 auto;
 }
 
 /* ── Hero ─────────────────────────────────────────────────────────────── */
