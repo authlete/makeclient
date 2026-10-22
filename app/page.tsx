@@ -223,7 +223,7 @@ export default function Home() {
         <nav>
           <a
             className="btn btn-primary"
-            href="https://www.authlete.com/"
+            href="https://console.authlete.com/register"
             target="_blank"
             rel="noreferrer"
           >
