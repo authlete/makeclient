@@ -31,3 +31,5 @@ yarn-error.log*
 
 # local dev store (Blob fallback)
 /.data
+
+!CLAUDE.md
