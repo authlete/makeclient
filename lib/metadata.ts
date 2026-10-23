@@ -19,6 +19,7 @@ export const DEFAULT_REDIRECT_URIS = [
  * device client — the common case. */
 export const DEFAULTS: Overrides = {
   client_name: "makeclient test client",
+  client_uri: "https://www.makeclient.dev",
   redirect_uris: DEFAULT_REDIRECT_URIS,
   grant_types: [
     "authorization_code",
