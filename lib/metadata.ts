@@ -51,7 +51,8 @@ export const CONFIDENTIAL_GRANTS = [
   JWT_BEARER_GRANT,
 ];
 
-/** Drop undefined/null/""/[] so overrides only replace what they actually set. */
+/** Drop undefined/null/""/[] so overrides only replace what they actually set.
+ * An empty array falls back to the default (an empty grant_types is invalid). */
 function prune(obj: Overrides): Overrides {
   const out: Overrides = {};
   for (const [k, v] of Object.entries(obj)) {

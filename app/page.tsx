@@ -123,20 +123,22 @@ export default function Home() {
       : BASE_GRANTS;
 
   // private_key_jwt can authenticate, so default its confidential grants on;
-  // a public client drops them. Keyed on authMethod so manual toggles stick.
+  // switching back to a public client drops them — but never down to empty.
   useEffect(() => {
     setGrants((g) => {
       const base = g.filter((x) => !CONFIDENTIAL_GRANTS.includes(x));
-      return authMethod === "private_key_jwt"
-        ? [...base, ...CONFIDENTIAL_GRANTS]
-        : base;
+      if (authMethod === "private_key_jwt")
+        return [...base, ...CONFIDENTIAL_GRANTS];
+      return base.length ? base : [...BASE_GRANTS];
     });
   }, [authMethod]);
 
   const toggle = (value: string) =>
-    setGrants((g) =>
-      g.includes(value) ? g.filter((v) => v !== value) : [...g, value],
-    );
+    setGrants((g) => {
+      if (!g.includes(value)) return [...g, value];
+      const next = g.filter((v) => v !== value);
+      return next.length ? next : g; // keep ≥1 grant — an empty doc is invalid
+    });
 
   const { overrides, rawError } = useMemo(() => {
     const o: Overrides = {};
