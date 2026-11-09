@@ -15,7 +15,8 @@ export async function GET(
   const stored = await getClient(id);
   if (!stored) return new Response("Not found", { status: 404 });
   const url = serveUrl(request.headers, `/s/${id}/client-metadata.json`);
-  return metadataResponse(buildMetadata(JSON.parse(stored), url));
+  const jwksUri = serveUrl(request.headers, `/s/${id}/jwks.json`);
+  return metadataResponse(buildMetadata(JSON.parse(stored), url, jwksUri));
 }
 
 export function OPTIONS() {

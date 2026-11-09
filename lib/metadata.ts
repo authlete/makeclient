@@ -138,14 +138,33 @@ function enforceCompliance(doc: Overrides): Overrides {
 
 /** Build the document: defaults ← overrides, with `client_id` forced to the
  * serving URL (never overridable — the spec ties identity to the URL), then
- * stripped of anything a public CIMD document must not contain. */
+ * stripped of anything a public CIMD document must not contain.
+ *
+ * When `jwksUri` is given, the keys are referenced by URL instead of embedded —
+ * what Poppy requires (and Authlete accepts). The /s/ route serves the keys at a
+ * sibling URL; the swap happens after enforceCompliance so the signing alg is
+ * still derived from the key. */
 export function buildMetadata(
   overrides: Overrides,
   clientId: string,
+  jwksUri?: string,
 ): Overrides {
   const merged = prune({ ...DEFAULTS, ...prune(overrides) });
   delete merged.client_id; // identity comes from the URL, not the body
-  return enforceCompliance(prune({ client_id: clientId, ...merged }));
+  const doc = enforceCompliance(prune({ client_id: clientId, ...merged }));
+  if (jwksUri && doc.jwks) {
+    delete doc.jwks;
+    doc.jwks_uri = jwksUri;
+  }
+  return doc;
+}
+
+/** The public JWKS (private key members stripped) for a stored config, or null
+ * if it carries none. Served at /s/<id>/jwks.json when a document uses jwks_uri. */
+export function publicJwks(overrides: Overrides): { keys: unknown[] } | null {
+  const jwks = stripPrivateKeys(overrides.jwks);
+  const keys = (jwks as { keys?: unknown })?.keys;
+  return Array.isArray(keys) ? { keys } : null;
 }
 
 // ── config <-> path segment (base64url of the overrides JSON) ────────────────

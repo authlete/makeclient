@@ -30,7 +30,10 @@ sites** — that's how every surface stays consistent.
 - `app/c/[config]/client-metadata.json/route.ts` — stateless; base64url of the
   overrides rides in the path (no query, per spec).
 - `app/s/[id]/client-metadata.json/route.ts` — stored config (a `jwks` is too
-  big for a URL); persisted via `lib/store.ts`.
+  big for a URL); persisted via `lib/store.ts`. The document references its keys
+  by `jwks_uri` (required by Poppy), not embedded — `buildMetadata` does the swap
+  when given a `jwksUri`.
+- `app/s/[id]/jwks.json/route.ts` — serves that public JWKS for a stored client.
 - `app/api/clients/route.ts` — POST entry. Mints an ES256 keypair for
   `private_key_jwt`, returns `{ client_id, private_key }`; the private key is
   never stored.

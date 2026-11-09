@@ -185,7 +185,13 @@ export default function Home() {
       : "/oauth/client-metadata.json";
   const clientId = origin ? origin + path : path;
   const hosted = confidential && hostedId === previewId && !!previewId;
-  const doc = buildMetadata(overrides, clientId);
+  // Confidential clients reference their keys by URL (jwks_uri) like the /s/
+  // route does, so the preview matches exactly what gets served.
+  const jwksUri =
+    confidential && origin && previewId
+      ? `${origin}/s/${previewId}/jwks.json`
+      : undefined;
+  const doc = buildMetadata(overrides, clientId, jwksUri);
 
   async function hostClient() {
     setHosting(true);
