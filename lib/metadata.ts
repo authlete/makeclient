@@ -11,8 +11,8 @@ export type Overrides = Record<string, unknown>;
 
 /** Redirect URIs used when the caller specifies none. Override to your own. */
 export const DEFAULT_REDIRECT_URIS = [
-  "http://localhost:5173/callback",
-  "https://authlete-playground.vercel.app/callback",
+  "https://makeclient.dev/callback",
+  "http://127.0.0.1:5173/callback",
 ];
 
 /** Defaults for a public (token_endpoint_auth_method=none) auth-code + refresh +
