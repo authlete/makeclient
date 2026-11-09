@@ -3,3 +3,4 @@ node_modules
 out
 .data
 package-lock.json
+public/llms.txt

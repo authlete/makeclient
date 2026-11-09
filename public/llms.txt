@@ -1,0 +1,50 @@
+# makeclient
+
+> Create and host an OAuth Client ID Metadata Document (CIMD) at a URL you use
+> directly as a `client_id` — no registration, no backend. Built by Authlete to
+> exercise CIMD-capable OAuth 2.0 / OpenID Connect authorization servers.
+
+A CIMD client is an OAuth client whose identity is a JSON document served at an
+HTTPS URL that *is* the `client_id`. The authorization server fetches that URL
+to read the client's metadata and keys, so there is no registration step. This
+replaces Dynamic Client Registration (DCR) for stateless and agent use cases
+(e.g. MCP, the Personal Agent Protocol).
+
+## Create a CIMD client
+
+Public (PKCE) client — config encoded in the URL, stateless:
+
+```
+curl -s https://makeclient.dev/api/clients \
+  -H 'content-type: application/json' \
+  -d '{"redirect_uris":["https://app.example/cb"]}'
+# → { "client_id": "https://makeclient.dev/c/<cfg>/client-metadata.json" }
+```
+
+Confidential (`private_key_jwt`) client — mints an ES256 keypair; the public key
+goes in the document, the private key is returned and never stored:
+
+```
+curl -s https://makeclient.dev/api/clients \
+  -H 'content-type: application/json' \
+  -d '{"token_endpoint_auth_method":"private_key_jwt"}'
+# → { "client_id": "https://makeclient.dev/s/<id>/client-metadata.json",
+#     "private_key": { ...JWK... } }
+```
+
+`GET` the `client_id` URL to see the document. Any RFC 7591 client-metadata
+field may be set in the POST body to override the defaults.
+
+## API
+
+- `POST https://makeclient.dev/api/clients` — create a client; returns
+  `client_id` (plus `private_key` for `private_key_jwt`).
+- `GET https://makeclient.dev/oauth/client-metadata.json` — the all-defaults
+  public client document.
+- OpenAPI: https://makeclient.dev/openapi.json
+
+## Links
+
+- Tool: https://makeclient.dev
+- Authlete: https://www.authlete.com
+- CIMD draft: https://datatracker.ietf.org/doc/draft-ietf-oauth-client-id-metadata-document/
