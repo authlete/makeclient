@@ -27,10 +27,8 @@ three GET routes call it. **Add fields or behavior here, not in the call
 sites** — that's how every surface stays consistent.
 
 - `app/oauth/client-metadata.json/route.ts` — all-defaults public client.
-- `app/c/[config]/client-metadata.json/route.ts` — stateless; base64url of the
-  overrides rides in the path (no query, per spec).
-- `app/s/[id]/client-metadata.json/route.ts` — stored config (a `jwks` is too
-  big for a URL); persisted via `lib/store.ts`. The document references its keys
+- `app/s/[id]/client-metadata.json/route.ts` — stored config (any customization;
+  the id is a content hash); persisted via `lib/store.ts`. The document references its keys
   by `jwks_uri` (required by Poppy), not embedded — `buildMetadata` does the swap
   when given a `jwksUri`.
 - `app/s/[id]/jwks.json/route.ts` — serves that public JWKS for a stored client.
@@ -56,9 +54,10 @@ sites** — that's how every surface stays consistent.
   only with `private_key_jwt`; the UI auto-enables them on that method.
 - **Overrides merge over `DEFAULTS`, and `prune` drops empty values** — so an
   override of `""` falls back to the default rather than blanking the field.
-- Confidential (jwks-bearing) configs → stored under a content-hash id (`/s/`).
-  Public configs → stateless in the path (`/c/`) or the clean default
-  (`/oauth`).
+- **Only the all-defaults client uses `/oauth`; any customization is stored under
+  a content-hash id (`/s/`)** so the `client_id` URL stays short — Authlete
+  rejects a `client_id` over 200 chars (A505308), which killed the old
+  config-in-the-URL scheme.
 - CORS is `*` on purpose: the AS fetches the document server-side, the browser
   inspects it client-side.
 

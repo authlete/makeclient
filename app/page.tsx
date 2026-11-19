@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   buildMetadata,
-  encodeConfig,
   CONFIDENTIAL_GRANTS,
   DEFAULTS,
   DEFAULT_REDIRECT_URIS,
@@ -142,14 +141,18 @@ export default function Home() {
 
   const { overrides, rawError } = useMemo(() => {
     const o: Overrides = {};
-    if (clientName !== DEFAULTS.client_name) o.client_name = clientName;
+    // Only add a field when it actually differs from the default — an empty
+    // input means "use the default" (it's a placeholder), so it must NOT count
+    // as a customization, or the all-defaults client would be stored, not /oauth.
+    if (clientName && clientName !== DEFAULTS.client_name)
+      o.client_name = clientName;
     const ru = redirects
       .split("\n")
       .map((s) => s.trim())
       .filter(Boolean);
     if (!eq(ru, DEFAULT_REDIRECT_URIS)) o.redirect_uris = ru;
     if (!eq(grants, DEFAULTS.grant_types as string[])) o.grant_types = grants;
-    if (scope !== DEFAULTS.scope) o.scope = scope;
+    if (scope && scope !== DEFAULTS.scope) o.scope = scope;
     if (authMethod === "private_key_jwt" && publicJwk) {
       o.token_endpoint_auth_method = "private_key_jwt";
       o.jwks = { keys: [publicJwk] };
@@ -166,25 +169,25 @@ export default function Home() {
   }, [clientName, redirects, grants, scope, authMethod, publicJwk, raw]);
 
   const confidential = !!overrides.jwks;
+  const customized = Object.keys(overrides).length > 0;
 
-  // Public clients encode into the URL (stateless). Confidential clients are too
-  // big for the URL, so they get a short stored id — the id is the hash of the
-  // config, computed here for a live preview and uploaded on "Create".
+  // The all-defaults client is served at the clean /oauth URL. Any customization
+  // is stored under a short, stable id — the content hash of the config — kept
+  // short so it never trips Authlete's 200-char client_id limit. The id is
+  // computed here for the live URL preview and uploaded on "Create".
   const [previewId, setPreviewId] = useState("");
   const [hostedId, setHostedId] = useState(""); // which config is actually stored
   const [hosting, setHosting] = useState(false);
   useEffect(() => {
-    if (!confidential) return;
+    if (!customized) return;
     void shortId(overrides).then(setPreviewId);
-  }, [confidential, overrides]);
+  }, [customized, overrides]);
 
-  const path = confidential
+  const path = customized
     ? `/s/${previewId}/client-metadata.json`
-    : Object.keys(overrides).length > 0
-      ? `/c/${encodeConfig(overrides)}/client-metadata.json`
-      : "/oauth/client-metadata.json";
+    : "/oauth/client-metadata.json";
   const clientId = origin ? origin + path : path;
-  const hosted = confidential && hostedId === previewId && !!previewId;
+  const hosted = customized && hostedId === previewId && !!previewId;
   // Confidential clients reference their keys by URL (jwks_uri) like the /s/
   // route does, so the preview matches exactly what gets served.
   const jwksUri =
@@ -255,7 +258,7 @@ export default function Home() {
             <div className="clientid-value">
               <input type="text" readOnly value={clientId} />
             </div>
-            {confidential && !hosted ? (
+            {customized && !hosted ? (
               <button
                 type="button"
                 className="btn btn-tertiary"
@@ -274,7 +277,7 @@ export default function Home() {
               </button>
             )}
           </div>
-          {confidential && hosted && <p className="hint">Created ✓</p>}
+          {customized && hosted && <p className="hint">Created ✓</p>}
         </section>
 
         <div className="columns">
@@ -408,7 +411,7 @@ export default function Home() {
           <section className="card">
             <div className="card-header">
               <h2>Document</h2>
-              {(!confidential || hosted) && (
+              {(!customized || hosted) && (
                 <a
                   className="btn btn-ghost"
                   href={path}

@@ -15,11 +15,11 @@ Open the UI at `/` — fill in the fields, watch the document update live, and
 copy the `client_id`. Or call the API:
 
 ```bash
-# public client (PKCE) — config rides in the URL, stateless
+# public client (PKCE) — any customization is stored under a short id
 curl -s https://makeclient.dev/api/clients \
   -H 'content-type: application/json' \
   -d '{"redirect_uris":["https://app.example/cb"]}'
-# → { "client_id": ".../c/<cfg>/client-metadata.json" }
+# → { "client_id": ".../s/<id>/client-metadata.json" }
 
 # confidential client (private_key_jwt) — mints an ES256 keypair: the public
 # key goes in the document, the private key is returned (never stored)
@@ -49,10 +49,11 @@ key). `GET` the `client_id` to see the document.
 
 ## How it works
 
-Public configs are **stateless**: encoded into the URL path (`/c/<cfg>`) or
-served as the clean default (`/oauth/client-metadata.json`). A config with a
-`jwks` is too big for a URL, so it's **stored** under a short content-hash id
-(`/s/<id>`) — Vercel Blob in prod, a local `.data/` folder in dev.
+The all-defaults client is served at the clean `/oauth/client-metadata.json`.
+Any customization is **stored** under a short, content-hash id (`/s/<id>`) —
+Vercel Blob in prod, a local `.data/` folder in dev. Short URLs are the point: a
+config encoded in the URL would exceed some authorization servers' `client_id`
+length limit (Authlete caps it at 200 chars).
 
 `lib/metadata.ts` is the single source of truth for every document (UI, API, and
 all routes), and `client_id` is always forced to the serving URL — the one rule

@@ -167,31 +167,6 @@ export function publicJwks(overrides: Overrides): { keys: unknown[] } | null {
   return Array.isArray(keys) ? { keys } : null;
 }
 
-// ── config <-> path segment (base64url of the overrides JSON) ────────────────
-// Universal (browser + Node 18+): no Buffer, so the UI and the routes share it.
-
-export function encodeConfig(overrides: Overrides): string {
-  const bytes = new TextEncoder().encode(JSON.stringify(prune(overrides)));
-  let bin = "";
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-/** Tolerant: an unparseable segment (or the literal "default") yields {} so the
- * endpoint still serves a valid defaults document rather than erroring. */
-export function decodeConfig(segment: string): Overrides {
-  if (!segment || segment === "default") return {};
-  try {
-    const b64 = segment.replace(/-/g, "+").replace(/_/g, "/");
-    const bin = atob(b64);
-    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-    const parsed = JSON.parse(new TextDecoder().decode(bytes));
-    return parsed && typeof parsed === "object" ? (parsed as Overrides) : {};
-  } catch {
-    return {};
-  }
-}
-
 /** The absolute HTTPS URL this request is being served from — the value the AS
  * fetched, so it matches the document's client_id. Built from forwarded headers
  * (Vercel sets them) and forced to https except on localhost. */

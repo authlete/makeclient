@@ -7,7 +7,6 @@
 import {
   CONFIDENTIAL_GRANTS,
   DEFAULTS,
-  encodeConfig,
   serveUrl,
   type Overrides,
 } from "@/lib/metadata";
@@ -82,16 +81,16 @@ export async function POST(request: Request) {
     };
   }
 
-  // A jwks is too big for the URL → persist and issue a short id. Otherwise the
-  // config fits in the path (no overrides → the clean canonical URL).
+  // Any customization is stored under a short, stable id (content hash of the
+  // config), so the client_id URL is always short. Only the all-defaults client
+  // gets the clean canonical URL. A stateless config-in-the-URL scheme would
+  // exceed Authlete's 200-char client_id limit (A505308).
   let path: string;
-  if (overrides.jwks && typeof overrides.jwks === "object") {
+  if (Object.keys(overrides).length > 0) {
     const canonical = JSON.stringify(overrides);
     const id = await hashId(canonical);
     await putClient(id, canonical);
     path = `/s/${id}/client-metadata.json`;
-  } else if (Object.keys(overrides).length > 0) {
-    path = `/c/${encodeConfig(overrides)}/client-metadata.json`;
   } else {
     path = "/oauth/client-metadata.json";
   }
