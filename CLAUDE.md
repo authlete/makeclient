@@ -46,10 +46,10 @@ sites** — that's how every surface stays consistent.
 - **`client_id` must equal the HTTPS URL the document is served from** (CIMD's
   one hard rule). `buildMetadata` forces it; it is never overridable.
 - **`enforceCompliance` (in `metadata.ts`) is load-bearing.** It strips what a
-  public document must not carry (`client_secret`, private JWK members) and
-  fills Authlete-required fields: `token_endpoint_auth_signing_alg` for
-  `private_key_jwt` and
-  `backchannel_token_delivery_mode: "poll"` when the CIBA grant is present.
+  public document must not carry (`client_secret`, private JWK members),
+  whitelists the auth method, and defaults `backchannel_token_delivery_mode` to
+  `poll` when the CIBA grant is present. It does **not** set
+  `token_endpoint_auth_signing_alg` — the alg lives on the key in the JWKS.
 - **`CONFIDENTIAL_GRANTS`** (`client_credentials`, CIBA, `jwt-bearer`) are valid
   only with `private_key_jwt`; the UI auto-enables them on that method.
 - **Overrides merge over `DEFAULTS`, and `prune` drops empty values** — so an
